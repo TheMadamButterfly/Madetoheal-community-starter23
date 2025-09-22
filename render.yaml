@@ -1,33 +1,30 @@
-# render.yaml — backend, frontend, and a Postgres database
-
 services:
-  # --- Backend (Express API) ---
   - type: web
     name: madetoheal-backend
     runtime: docker
     plan: starter
     rootDir: backend
     envVars:
-      # Pull DATABASE_URL from the database defined below
       - key: DATABASE_URL
         fromDatabase:
           name: madetoheal-db
           property: connectionString
-      # Ask for a secret at first deploy (you can also set it later in the dashboard)
       - key: JWT_SECRET
         sync: false
 
-  # --- Frontend (React/Vite) ---
   - type: web
     name: madetoheal-frontend
     runtime: docker
     plan: starter
     rootDir: frontend
     envVars:
-      # We'll set this after the backend is live, via the dashboard
       - key: VITE_API_URL
         sync: false
 
 databases:
   - name: madetoheal-db
-    plan: starter
+    # pick ONE of these current plans:
+    # plan: free          # great to start, 1 GB disk by default
+    plan: basic-1gb       # small paid, 15 GB disk by default
+    # Optional: explicitly set disk size (1 or multiples of 5)
+    # diskSizeGB: 15
