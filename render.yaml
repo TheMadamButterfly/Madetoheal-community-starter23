@@ -1,9 +1,12 @@
 services:
+  # --- Backend (Node runtime) ---
   - type: web
     name: madetoheal-backend
-    runtime: docker
+    runtime: node
     plan: starter
     rootDir: backend
+    buildCommand: npm install
+    startCommand: node index.js
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -12,19 +15,18 @@ services:
       - key: JWT_SECRET
         sync: false
 
+  # --- Frontend (Node runtime) ---
   - type: web
     name: madetoheal-frontend
-    runtime: docker
+    runtime: node
     plan: starter
     rootDir: frontend
+    buildCommand: npm install && npm run build
+    startCommand: npx serve -s dist -l 3000
     envVars:
       - key: VITE_API_URL
         sync: false
 
 databases:
   - name: madetoheal-db
-    # pick ONE of these current plans:
-    # plan: free          # great to start, 1 GB disk by default
-    plan: basic-1gb       # small paid, 15 GB disk by default
-    # Optional: explicitly set disk size (1 or multiples of 5)
-    # diskSizeGB: 15
+    plan: free   # or basic-1gb if you prefer paid
