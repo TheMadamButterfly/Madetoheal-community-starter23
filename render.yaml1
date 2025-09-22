@@ -1,20 +1,33 @@
-# Render services: backend + frontend + postgres
+# render.yaml — backend, frontend, and a Postgres database
+
 services:
+  # --- Backend (Express API) ---
   - type: web
     name: madetoheal-backend
-    env: docker
-    dockerfilePath: backend/Dockerfile
-    instanceType: starter
+    runtime: docker
+    plan: starter
+    rootDir: backend
     envVars:
+      # Pull DATABASE_URL from the database defined below
       - key: DATABASE_URL
-        scope: env
+        fromDatabase:
+          name: madetoheal-db
+          property: connectionString
+      # Ask for a secret at first deploy (you can also set it later in the dashboard)
       - key: JWT_SECRET
-        scope: env
+        sync: false
+
+  # --- Frontend (React/Vite) ---
   - type: web
     name: madetoheal-frontend
-    env: docker
-    dockerfilePath: frontend/Dockerfile
-    instanceType: starter
+    runtime: docker
+    plan: starter
+    rootDir: frontend
+    envVars:
+      # We'll set this after the backend is live, via the dashboard
+      - key: VITE_API_URL
+        sync: false
+
 databases:
   - name: madetoheal-db
     plan: starter
