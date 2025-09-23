@@ -1,6 +1,3 @@
-
-### `backend/package.json`
-```json
 {
   "name": "madetoheal-backend",
   "version": "0.1.0",
