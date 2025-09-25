@@ -1,0 +1,49 @@
+:root {
+  --bg: #f7faf9;          /* page background */
+  --card: #ffffff;        /* card surface */
+  --text: #1a1f1c;        /* main text */
+  --muted: #667085;       /* secondary text */
+  --primary: #2e7d6b;     /* Made to Heal green */
+  --primary-600: #256f5f; /* button hover */
+  --ring: #bfe3da;        /* focus ring */
+  --border: #e6e9e7;      /* lines/borders */
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); }
+
+.button {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.button:hover { background: var(--primary-600); }
+.button.ghost {
+  background: transparent;
+  color: var(--primary);
+  border: 1px solid var(--primary);
+}
+.input, .select, .textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  outline: none;
+}
+.input:focus, .select:focus, .textarea:focus { box-shadow: 0 0 0 3px var(--ring); }
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+}
+.header {
+  display:flex; justify-content:space-between; align-items:center;
+  padding: 16px 12px; position: sticky; top: 0; background: var(--bg);
+}
+.nav button { margin-right: 8px; }
+.badge { color: var(--muted); font-size: 12px; }
