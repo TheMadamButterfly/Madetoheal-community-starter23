@@ -125,15 +125,51 @@ function Composer({onPosted}) {
 }
 
 /* ---------- Comments ---------- */
-function Comments({postId}) {
+function Comments({ postId }) {
   const [comments, setComments] = useState([]);
   const [text, setText] = useState('');
+
   async function load() {
-    try{
-      const r = await axios.get(API+`/posts/${postId}/comments`);
+    try {
+      const r = await axios.get(`${API}/posts/${postId}/comments`);
       setComments(r.data);
-    }catch(e){ console.error(e); }
+    } catch (e) {
+      console.error(e);
+    }
   }
+
   async function add() {
-    try{
-      await axios.post(API+`/posts/${postId}/comment
+    try {
+      await axios.post(
+        `${API}/posts/${postId}/comments`,
+        { body: text },
+        { headers: { Authorization: 'Bearer ' + localStorage.token } }
+      );
+      setText('');
+      await load();
+    } catch (e) {
+      console.error(e);
+      alert('Comment failed');
+    }
+  }
+
+  useEffect(() => { load(); }, [postId]);
+
+  return (
+    <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+      <div style={{ fontWeight: 600, marginBottom: 6 }}>Comments</div>
+      {comments.length === 0 && <div className="badge">Be the first to comment.</div>}
+      {comments.map(c => (
+        <div key={c.id} style={{ margin: '6px 0' }}>
+          <div className="badge"><b>{c.author_name || 'Member'}</b> • {new Date(c.created_at).toLocaleString()}</div>
+          <div>{c.body}</div>
+        </div>
+      ))}
+      <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+        <input className="input" value={text} onChange={e => setText(e.target.value)} placeholder="Write a comment…" />
+        <button className="button" onClick={add}>Send</button>
+      </div>
+    </div>
+  );
+}
+
