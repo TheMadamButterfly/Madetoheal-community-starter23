@@ -58,14 +58,10 @@ function Auth({onAuth}){
 
   return (
     <Section title={mode==='login'?'Login':'Create your account'}>
-      <input placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} style={{width:'100%',margin:'6px 0'}}/>
-      <input placeholder="Password" type="password" value={password} onChange={e=>setPassword(e.target.value)} style={{width:'100%',margin:'6px 0'}}/>
-      {mode==='register' && (
-        <input placeholder="Your name" value={name} onChange={e=>setName(e.target.value)} style={{width:'100%',margin:'6px 0'}}/>
-      )}
-      <div style={{display:'flex',gap:8,marginTop:8}}>
-        <button onClick={submit}>{mode==='login'?'Login':'Create'}</button>
-        <button onClick={()=>setMode(mode==='login'?'register':'login')}>
+     <input className="input" type="email" value={email} onChange={...} placeholder="Email" />
+<input className="input" type="password" value={password} onChange={...} placeholder="Password" />
+<button className="button" onClick={login}>Login</button>
+<button className="button ghost" onClick={register}>Register</button>
           {mode==='login'?'Need an account? Register':'Have an account? Login'}
         </button>
       </div>
@@ -92,16 +88,16 @@ function Composer({onPosted}) {
 
   return (
     <Section title="Share something with the community">
-      <textarea value={text} onChange={e=>setText(e.target.value)} placeholder="What would you like to share?" rows={4} style={{width:'100%'}} />
-      <input placeholder="Optional image URL" value={imageUrl} onChange={e=>setImageUrl(e.target.value)} style={{width:'100%',marginTop:6}} />
-      <div style={{display:'flex',alignItems:'center',gap:8,marginTop:8}}>
-        <label>Visibility:</label>
-        <select value={visibility} onChange={e=>setVisibility(e.target.value)}>
-          <option value="public">Public</option>
-          <option value="members">Members</option>
-        </select>
-        <button onClick={post} style={{marginLeft:'auto'}}>Post</button>
-      </div>
+      <textarea className="textarea" value={text} onChange={...} placeholder="Write something…" />
+<input className="input" type="text" placeholder="Image URL (optional)" value={imageUrl} onChange={...} />
+<select className="select" value={visibility} onChange={...}>
+  <option value="public">Public</option>
+  <option value="members">Members</option>
+</select>
+<button className="button" onClick={post}>Post</button>
+     <div className="card">
+  {/* composer content goes here */}
+</div>
     </Section>
   );
 }
@@ -138,7 +134,12 @@ function Comments({postId}) {
       <div style={{display:'flex',gap:6,marginTop:8}}>
         <input value={text} onChange={e=>setText(e.target.value)} placeholder="Write a comment…" style={{flex:1}} />
         <button onClick={add}>Send</button>
-      </div>
+      <div className="card">
+  <p>{post.body}</p>
+  <button className="button ghost" onClick={like}>Like</button>
+  <button className="button ghost" onClick={comment}>Comment</button>
+</div>
+
     </div>
   );
 }
