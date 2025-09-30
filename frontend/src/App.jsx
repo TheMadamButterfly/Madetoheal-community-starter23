@@ -110,22 +110,46 @@ function Auth({ onAuth }) {
   );
 }
 
-/* ---------- Composer (create post) ---------- */
+/* ---------- Composer (create post with Cloudinary upload) ---------- */
 function Composer({ onPosted }) {
   const [text, setText] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
+  const [file, setFile] = useState(null);
+  const [imageUrl, setImageUrl] = useState('');   // optional paste URL
   const [visibility, setVisibility] = useState('public');
   const [busy, setBusy] = useState(false);
+
+  async function uploadViaBackend(selectedFile) {
+    const form = new FormData();
+    form.append('file', selectedFile);
+
+    const r = await fetch(API + '/upload/image', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + localStorage.token },
+      body: form
+    });
+    if (!r.ok) throw new Error('Upload failed');
+    const data = await r.json();
+    return data.url; // Cloudinary https URL
+  }
 
   async function post() {
     try {
       setBusy(true);
+      let finalImageUrl = imageUrl || null;
+
+      if (file) {
+        finalImageUrl = await uploadViaBackend(file);
+      }
+
       await axios.post(
         API + '/posts',
-        { body: text, image_url: imageUrl || null, visibility },
+        { body: text, image_url: finalImageUrl, visibility },
         { headers: { Authorization: 'Bearer ' + localStorage.token } }
       );
+
+      // reset form
       setText('');
+      setFile(null);
       setImageUrl('');
       setVisibility('public');
       onPosted();
@@ -146,12 +170,28 @@ function Composer({ onPosted }) {
         placeholder="What would you like to share?"
         rows={4}
       />
-      <input
-        className="input"
-        placeholder="Optional image URL"
-        value={imageUrl}
-        onChange={(e) => setImageUrl(e.target.value)}
-      />
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div>
+          <label className="badge">Attach image (upload)</label>
+          <input
+            className="input"
+            type="file"
+            accept="image/*"
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+          />
+        </div>
+        <div>
+          <label className="badge">…or paste image URL</label>
+          <input
+            className="input"
+            placeholder="https://…"
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+          />
+        </div>
+      </div>
+
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
         <label className="badge">Visibility</label>
         <select
@@ -175,7 +215,6 @@ function Composer({ onPosted }) {
     </Section>
   );
 }
-
 /* ---------- Comments ---------- */
 function Comments({ postId }) {
   const [comments, setComments] = useState([]);
