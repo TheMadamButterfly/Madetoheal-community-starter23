@@ -1,7 +1,8 @@
 /**
- * Made to Heal — Backend (MVP)
+ * Made to Heal — Backend (MVP) with S3 uploads
  * Node runtime on Render (no Docker).
  * Requires env: DATABASE_URL, JWT_SECRET
+ * For S3 uploads: AWS_REGION, S3_BUCKET, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
  */
 
 const express = require('express');
@@ -199,13 +200,47 @@ app.post('/api/reports', auth, async (req, res) => {
   res.json(r.rows[0]);
 });
 
-// --- Demo uploads (local; for production use S3) ---
+// --- Local demo uploads (kept for dev; not used in prod once S3 is on) ---
 const upload = multer({ dest: 'uploads/' });
 app.post('/api/upload', auth, upload.single('file'), (req, res) => {
   const fileUrl = `/uploads/${req.file.filename}`;
   res.json({ url: fileUrl });
 });
 app.use('/uploads', express.static('uploads'));
+
+// ---- S3 presigned POST for direct browser uploads ----
+const { S3Client } = require('@aws-sdk/client-s3');
+const { createPresignedPost } = require('@aws-sdk/s3-presigned-post');
+const mime = require('mime-types');
+
+const s3 = new S3Client({ region: process.env.AWS_REGION });
+
+app.post('/api/upload/presign', auth, async (req, res) => {
+  try {
+    const { filename, contentType } = req.body || {};
+    if (!filename) return res.status(400).json({ error: 'filename required' });
+    const ct = contentType || mime.lookup(filename) || 'application/octet-stream';
+    const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const key = `uploads/${req.user.id}/${Date.now()}-${safeName}`;
+
+    const { url, fields } = await createPresignedPost(s3, {
+      Bucket: process.env.S3_BUCKET,
+      Key: key,
+      Conditions: [
+        ['content-length-range', 0, 10 * 1024 * 1024], // up to 10MB
+        ['starts-with', '$Content-Type', '']
+      ],
+      Fields: { 'Content-Type': ct },
+      Expires: 60
+    });
+
+    const publicUrl = `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+    res.json({ url, fields, publicUrl });
+  } catch (e) {
+    console.error('presign failed', e);
+    res.status(500).json({ error: 'presign failed' });
+  }
+});
 
 // Start server
 const PORT = process.env.PORT || 4000;
