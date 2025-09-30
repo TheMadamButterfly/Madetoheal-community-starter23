@@ -1,8 +1,13 @@
 /**
- * Made to Heal — Backend (MVP) with S3 uploads
- * Node runtime on Render (no Docker).
- * Requires env: DATABASE_URL, JWT_SECRET
- * For S3 uploads: AWS_REGION, S3_BUCKET, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+ * Made to Heal — Backend (MVP) with Cloudinary uploads
+ * Runtime: Node on Render (no Docker)
+ *
+ * Required env:
+ * - DATABASE_URL        (Render Postgres)
+ * - JWT_SECRET          (any long random string)
+ * - CLOUDINARY_CLOUD_NAME
+ * - CLOUDINARY_API_KEY
+ * - CLOUDINARY_API_SECRET
  */
 
 const express = require('express');
@@ -14,15 +19,15 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 
-const app = express();                 // create app FIRST
+const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Connect to Postgres (Render injects DATABASE_URL from your DB)
+// ---- Postgres ----
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
 
-// Auto-apply schema on startup (creates tables if missing)
+// Apply schema on startup (creates tables if missing)
 (async () => {
   try {
     const schemaPath = path.join(__dirname, 'db', 'schema.sql');
@@ -34,7 +39,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
   }
 })();
 
-// Simple auth middleware (expects "Authorization: Bearer <token>")
+// ---- Auth middleware ----
 function auth(req, res, next) {
   const h = req.headers.authorization;
   if (!h) return res.status(401).json({ error: 'no token' });
@@ -48,18 +53,20 @@ function auth(req, res, next) {
   }
 }
 
-// Health check
+// ---- Health ----
 app.get('/api/health', (req, res) => res.json({ ok: true, ts: new Date() }));
 
-// --- Auth ---
+// ---- Auth routes ----
 app.post('/api/auth/register', async (req, res) => {
   const { email, password, name, username } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'email+password required' });
   try {
     const pwHash = await bcrypt.hash(password, 10);
-    const q = `INSERT INTO users(email,password_hash,name,username)
-               VALUES($1,$2,$3,$4)
-               RETURNING id,email,name,username,avatar_url,bio,created_at`;
+    const q = `
+      INSERT INTO users(email,password_hash,name,username)
+      VALUES($1,$2,$3,$4)
+      RETURNING id,email,name,username,avatar_url,bio,created_at
+    `;
     const r = await pool.query(q, [email, pwHash, name || null, username || null]);
     const user = r.rows[0];
     const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
@@ -88,7 +95,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// --- Me ---
+// ---- Me ----
 app.get('/api/me', auth, async (req, res) => {
   const r = await pool.query(
     'SELECT id,email,name,username,avatar_url,bio,created_at FROM users WHERE id=$1',
@@ -99,23 +106,33 @@ app.get('/api/me', auth, async (req, res) => {
 
 app.patch('/api/me', auth, async (req, res) => {
   const { name, username, avatar_url, bio } = req.body;
-  const q = `UPDATE users
-             SET name=COALESCE($1,name),
-                 username=COALESCE($2,username),
-                 avatar_url=COALESCE($3,avatar_url),
-                 bio=COALESCE($4,bio)
-             WHERE id=$5
-             RETURNING id,email,name,username,avatar_url,bio,created_at`;
+  const q = `
+    UPDATE users
+    SET name=COALESCE($1,name),
+        username=COALESCE($2,username),
+        avatar_url=COALESCE($3,avatar_url),
+        bio=COALESCE($4,bio)
+    WHERE id=$5
+    RETURNING id,email,name,username,avatar_url,bio,created_at
+  `;
   const r = await pool.query(q, [name, username, avatar_url, bio, req.user.id]);
   res.json({ user: r.rows[0] });
 });
 
-// --- Posts ---
+// ---- Posts ----
 app.post('/api/posts', auth, async (req, res) => {
   const { body, image_url, visibility } = req.body;
-  const q = `INSERT INTO posts(author_id, body, image_url, visibility)
-             VALUES($1,$2,$3,$4) RETURNING *`;
-  const r = await pool.query(q, [req.user.id, body || null, image_url || null, visibility || 'public']);
+  const q = `
+    INSERT INTO posts(author_id, body, image_url, visibility)
+    VALUES($1,$2,$3,$4)
+    RETURNING *
+  `;
+  const r = await pool.query(q, [
+    req.user.id,
+    body || null,
+    image_url || null,
+    visibility || 'public',
+  ]);
   res.json(r.rows[0]);
 });
 
@@ -128,7 +145,7 @@ app.get('/api/posts/:id', async (req, res) => {
   res.json(r.rows[0]);
 });
 
-// --- Feed (with like/comment counts) ---
+// ---- Feed (with counts) ----
 app.get('/api/feed', auth, async (req, res) => {
   const limit = parseInt(req.query.limit) || 20;
   const q = `
@@ -163,7 +180,7 @@ app.get('/api/feed', auth, async (req, res) => {
   }
 });
 
-// --- Comments ---
+// ---- Comments ----
 app.post('/api/posts/:id/comments', auth, async (req, res) => {
   const { body } = req.body;
   const r = await pool.query(
@@ -172,6 +189,7 @@ app.post('/api/posts/:id/comments', auth, async (req, res) => {
   );
   res.json(r.rows[0]);
 });
+
 app.get('/api/posts/:id/comments', async (req, res) => {
   const r = await pool.query(
     'SELECT c.*, u.name as author_name FROM comments c LEFT JOIN users u on c.author_id=u.id WHERE c.post_id=$1 ORDER BY created_at ASC',
@@ -180,17 +198,24 @@ app.get('/api/posts/:id/comments', async (req, res) => {
   res.json(r.rows);
 });
 
-// --- Likes ---
+// ---- Likes ----
 app.post('/api/posts/:id/like', auth, async (req, res) => {
   const postId = req.params.id;
   const userId = req.user.id;
-  const del = await pool.query('DELETE FROM reactions WHERE post_id=$1 AND user_id=$2 RETURNING id', [postId, userId]);
+  const del = await pool.query(
+    'DELETE FROM reactions WHERE post_id=$1 AND user_id=$2 RETURNING id',
+    [postId, userId]
+  );
   if (del.rowCount > 0) return res.json({ liked: false });
-  await pool.query('INSERT INTO reactions(post_id,user_id,type) VALUES($1,$2,$3)', [postId, userId, 'like']);
+  await pool.query('INSERT INTO reactions(post_id,user_id,type) VALUES($1,$2,$3)', [
+    postId,
+    userId,
+    'like',
+  ]);
   res.json({ liked: true });
 });
 
-// --- Reports ---
+// ---- Reports ----
 app.post('/api/reports', auth, async (req, res) => {
   const { target_type, target_id, reason } = req.body;
   const r = await pool.query(
@@ -200,48 +225,49 @@ app.post('/api/reports', auth, async (req, res) => {
   res.json(r.rows[0]);
 });
 
-// --- Local demo uploads (kept for dev; not used in prod once S3 is on) ---
-const upload = multer({ dest: 'uploads/' });
-app.post('/api/upload', auth, upload.single('file'), (req, res) => {
+// ---- Local demo uploads (optional) ----
+const uploadLocal = multer({ dest: 'uploads/' });
+app.post('/api/upload', auth, uploadLocal.single('file'), (req, res) => {
   const fileUrl = `/uploads/${req.file.filename}`;
   res.json({ url: fileUrl });
 });
 app.use('/uploads', express.static('uploads'));
 
-// ---- S3 presigned POST for direct browser uploads ----
-const { S3Client } = require('@aws-sdk/client-s3');
-const { createPresignedPost } = require('@aws-sdk/s3-presigned-post');
-const mime = require('mime-types');
+// ---- Cloudinary upload (server-side) ----
+const cloudinary = require('cloudinary').v2;
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
-const s3 = new S3Client({ region: process.env.AWS_REGION });
+// reuse multer for temp file storage
+const uploadCloud = multer({ dest: 'uploads/' });
 
-app.post('/api/upload/presign', auth, async (req, res) => {
+// POST /api/upload/image (multipart field: "file")
+app.post('/api/upload/image', auth, uploadCloud.single('file'), async (req, res) => {
   try {
-    const { filename, contentType } = req.body || {};
-    if (!filename) return res.status(400).json({ error: 'filename required' });
-    const ct = contentType || mime.lookup(filename) || 'application/octet-stream';
-    const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const key = `uploads/${req.user.id}/${Date.now()}-${safeName}`;
+    if (!req.file) return res.status(400).json({ error: 'file required' });
 
-    const { url, fields } = await createPresignedPost(s3, {
-      Bucket: process.env.S3_BUCKET,
-      Key: key,
-      Conditions: [
-        ['content-length-range', 0, 10 * 1024 * 1024], // up to 10MB
-        ['starts-with', '$Content-Type', '']
-      ],
-      Fields: { 'Content-Type': ct },
-      Expires: 60
+    const result = await cloudinary.uploader.upload(req.file.path, {
+      folder: `madetoheal/${req.user.id}`,
+      resource_type: 'image'
     });
 
-    const publicUrl = `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
-    res.json({ url, fields, publicUrl });
+    try { fs.unlinkSync(req.file.path); } catch {}
+
+    return res.json({
+      url: result.secure_url,
+      width: result.width,
+      height: result.height,
+      public_id: result.public_id
+    });
   } catch (e) {
-    console.error('presign failed', e);
-    res.status(500).json({ error: 'presign failed' });
+    console.error('cloudinary upload failed', e);
+    return res.status(500).json({ error: 'upload failed' });
   }
 });
 
-// Start server
+// ---- Start ----
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log('Backend running on', PORT));
