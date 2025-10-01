@@ -243,24 +243,54 @@ cloudinary.config({
 
 // reuse multer for temp file storage
 const uploadCloud = multer({ dest: 'uploads/' });
-
 // POST /api/upload/image (multipart field: "file")
 app.post('/api/upload/image', auth, uploadCloud.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'file required' });
 
+    // Upload original
     const result = await cloudinary.uploader.upload(req.file.path, {
       folder: `madetoheal/${req.user.id}`,
-      resource_type: 'image'
+      resource_type: 'image',
+      use_filename: true,
+      unique_filename: true,
+      overwrite: false
     });
 
+    // Clean up local temp
     try { fs.unlinkSync(req.file.path); } catch {}
 
+    // Build optimized delivery URLs (on-the-fly transformations)
+    const publicId = result.public_id;
+
+    // Feed-sized image (<=1280px wide, auto format+quality)
+    const feedUrl = cloudinary.url(publicId, {
+      secure: true,
+      transformation: [
+        { width: 1280, crop: 'limit' },
+        { quality: 'auto' },
+        { fetch_format: 'auto' }
+      ]
+    });
+
+    // Square thumbnail (400x400, face-aware)
+    const thumbUrl = cloudinary.url(publicId, {
+      secure: true,
+      transformation: [
+        { width: 400, height: 400, crop: 'fill', gravity: 'auto' },
+        { quality: 'auto' },
+        { fetch_format: 'auto' }
+      ]
+    });
+
+    // Return both optimized URLs (keep original too)
     return res.json({
-      url: result.secure_url,
+      url: result.secure_url,     // original
+      feedUrl,                    // optimized for feed
+      thumbUrl,                   // square thumb (future use: cards, avatars)
+      public_id: publicId,
       width: result.width,
-      height: result.height,
-      public_id: result.public_id
+      height: result.height
     });
   } catch (e) {
     console.error('cloudinary upload failed', e);
@@ -268,6 +298,3 @@ app.post('/api/upload/image', auth, uploadCloud.single('file'), async (req, res)
   }
 });
 
-// ---- Start ----
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log('Backend running on', PORT));
