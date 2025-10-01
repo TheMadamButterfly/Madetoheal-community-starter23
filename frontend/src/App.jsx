@@ -161,60 +161,21 @@ function Composer({ onPosted }) {
     }
   }
 
-  return (
-    <Section title="Share something with the community">
-      <textarea
-        className="textarea"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="What would you like to share?"
-        rows={4}
-      />
+  return
+  async function uploadViaBackend(selectedFile) {
+  const form = new FormData();
+  form.append('file', selectedFile);
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <div>
-          <label className="badge">Attach image (upload)</label>
-          <input
-            className="input"
-            type="file"
-            accept="image/*"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-          />
-        </div>
-        <div>
-          <label className="badge">…or paste image URL</label>
-          <input
-            className="input"
-            placeholder="https://…"
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-          />
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
-        <label className="badge">Visibility</label>
-        <select
-          className="select"
-          value={visibility}
-          onChange={(e) => setVisibility(e.target.value)}
-          style={{ maxWidth: 200 }}
-        >
-          <option value="public">Public</option>
-          <option value="members">Members</option>
-        </select>
-        <button
-          className="button"
-          onClick={post}
-          disabled={busy}
-          style={{ marginLeft: 'auto' }}
-        >
-          {busy ? 'Posting…' : 'Post'}
-        </button>
-      </div>
-    </Section>
-  );
+  const r = await fetch(API + '/upload/image', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + localStorage.token },
+    body: form
+  });
+  if (!r.ok) throw new Error('Upload failed');
+  const data = await r.json();
+  return data.feedUrl || data.url;  // prefer optimized feed image
 }
+
 /* ---------- Comments ---------- */
 function Comments({ postId }) {
   const [comments, setComments] = useState([]);
